@@ -31,24 +31,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CONTENT=$(base64 -w 0 build_output.log)
-          SHA=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/contents/build_output.log" \
-            | python3 -c "import json,sys
-try:
-    print(json.load(sys.stdin)['sha'])
-except:
-    print('')" 2>/dev/null || echo "")
+          SHA=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/contents/build_output.log" | grep -o '"sha": *"[a-f0-9]*"' | head -1 | cut -d'"' -f4)
           if [ -n "$SHA" ]; then
-            PAYLOAD="{\"message\": \"Update build log\", \"content\": \"$CONTENT\", \"sha\": \"$SHA\", \"branch\": \"main\"}"
+            printf '{"message": "Update build log", "content": "%s", "sha": "%s", "branch": "main"}' "$CONTENT" "$SHA" > /tmp/payload.json
           else
-            PAYLOAD="{\"message\": \"Add build log\", \"content\": \"$CONTENT\", \"branch\": \"main\"}"
+            printf '{"message": "Add build log", "content": "%s", "branch": "main"}' "$CONTENT" > /tmp/payload.json
           fi
-          echo "$PAYLOAD" > /tmp/payload.json
-          curl -s -X PUT \
-            -H "Authorization: token $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/contents/build_output.log" \
-            -d @/tmp/payload.json
+          curl -s -X PUT -H "Authorization: token $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${{ github.repository }}/contents/build_output.log" -d @/tmp/payload.json
 
       - name: Upload compiled plugin
         if: env.BUILD_FAILED != 'true'
